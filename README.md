@@ -5,7 +5,7 @@ For this project you will implement a basic heap manager. The standard C runtime
 # Recommended Reading 
 
 * [Basic from OSTEP](http://pages.cs.wisc.edu/~remzi/OSTEP/vm-api.pdf)
-* [Free space management (ch 17) from OSTEP](http://pages.cs.wisc.edu/~remzi/OSTEP/vm-freespace.pdf)
+* [Free Space Management (Ch 17) from OSTEP](http://pages.cs.wisc.edu/~remzi/OSTEP/vm-freespace.pdf)
 * [Advanced from CS:APP](https://www2.cs.duke.edu/courses/fall20/compsci310/internal/dynamicmem.pdf)
 
 
@@ -13,19 +13,15 @@ For this project you will implement a basic heap manager. The standard C runtime
 
 We use a different repo for the DMM lab. Please clone the repo via one of these addresses (depending on if you want HTTPS or SSH authentication):
 
-{% highlight console %}
-$ git clone https://gitlab.oit.duke.edu/os-course/dmm.git
-OR
-$ git clone git@gitlab.oit.duke.edu:os-course/dmm.git
-Cloning into 'dmm'...
-{% endhighlight %}
+    $ git clone https://gitlab.oit.duke.edu/os-course/dmm.git
+    OR
+    $ git clone git@gitlab.oit.duke.edu:os-course/dmm.git
+    Cloning into 'dmm'...
 
 You need to run the lab on Linux system. We recommend you use the docker image we provided (i.e., same as the xv6 docker) via following commands:
 
-{% highlight console %}
-$ cd <PathToBaseRepo>
-$ docker run -it --rm -v $PWD:/home/xv6/xv6-riscv iqicheng/cps310-env
-{% endhighlight %}
+    $ cd <PathToBaseRepo>
+    $ docker run -it --rm -v $PWD:/home/xv6/xv6-riscv iqicheng/cps310-env
 
 You only need to modify `dmm.c` and `dmm.h` to finish this lab.
 
