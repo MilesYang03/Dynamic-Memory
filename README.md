@@ -1,8 +1,3 @@
----
-layout: default
----
-
-
 # Dynamic Memory Manager (DMM)
 
 For this project you will implement a basic heap manager. The standard C runtime library provides a standard heap manager through the malloc and free library calls. For this project you will implement your own version of this interface.
