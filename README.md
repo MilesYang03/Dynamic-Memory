@@ -1,12 +1,42 @@
-# Dynamic memory manager
+---
+layout: default
+---
+
+
+# Dynamic Memory Manager (DMM)
 
 For this project you will implement a basic heap manager. The standard C runtime library provides a standard heap manager through the malloc and free library calls. For this project you will implement your own version of this interface.
 
-# Recommended reading 
+# Recommended Reading 
 
-* [basic from OSTEP](http://pages.cs.wisc.edu/~remzi/OSTEP/vm-api.pdf)
-* [free space management (ch 17) from OSTEP](http://pages.cs.wisc.edu/~remzi/OSTEP/vm-freespace.pdf)
-* [advanced from CS:APP](https://www2.cs.duke.edu/courses/fall20/compsci310/internal/dynamicmem.pdf)
+* [Basic from OSTEP](http://pages.cs.wisc.edu/~remzi/OSTEP/vm-api.pdf)
+* [Free space management (ch 17) from OSTEP](http://pages.cs.wisc.edu/~remzi/OSTEP/vm-freespace.pdf)
+* [Advanced from CS:APP](https://www2.cs.duke.edu/courses/fall20/compsci310/internal/dynamicmem.pdf)
+
+
+# DMM Lab
+
+We use a different repo for the DMM lab. Please clone the repo via one of these addresses (depending on if you want HTTPS or SSH authentication):
+
+{% highlight console %}
+$ git clone https://gitlab.oit.duke.edu/os-course/dmm.git
+OR
+$ git clone git@gitlab.oit.duke.edu:os-course/dmm.git
+Cloning into 'dmm'...
+{% endhighlight %}
+
+You need to run the lab on Linux system. We recommend you use the docker image we provided (i.e., same as the xv6 docker) via following commands:
+
+{% highlight console %}
+$ cd <PathToBaseRepo>
+$ docker run -it --rm -v $PWD:/home/xv6/xv6-riscv iqicheng/cps310-env
+{% endhighlight %}
+
+You only need to modify `dmm.c` and `dmm.h` to finish this lab.
+
+To test your solution, please run <kbd>make test</kbd>. Each test case (TC) will print out "passed!" or "Fail". You need to pass all the test cases.
+
+To submit your solution, please run <kbd>make gradescope</kbd>, and submit your `submission.zip` to gradescope.
 
 
 # Introduction
@@ -19,13 +49,13 @@ The lab is designed to build your understanding of how data is laid out in memor
 
 As a side benefit, the lab will you get better at system programming in the C language, and manipulating data structures "underneath" the type system. We strongly encourage you to start early and familiarize yourself with C and its pitfalls and with the C/Unix development environment. You will need to know some basic Unix command line tools: man, cd, ls, cat, more/less, pwd, cp, mv, rm, diff, make, and an editor/IDE of some kind. Also, debugging will go much more easily if you use a debugger such as gdb, at least a little.
 
-# Dynamic memory allocation
+# Dynamic Memory Allocation
 
 At any given time, the heap consists of a sequence of blocks. Each heap block is a contiguous sequence of bytes. Every byte in the heap is part of exactly one heap block. Each block is either allocated or free.
 
 Heap blocks are variably sized. The borders between the blocks shift as blocks are allocated (with dmalloc) and freed (with dfree). In particular, the heap manager splits and coalesces heap blocks to satisfy the mix of arriving heap requests. The heap manager must be careful to track the borders and the status of each block. The following subsections discuss the implementation in more detail.
 
-## Block metadata: headers
+## Block Metadata: Headers
 
 The heap manager places a header at the start of each block of the heap space. A block's header represents some information about the block, including the block's size. In general "metadata" is data about data: the header describes the block, but it is not user data. The rest of the block is available for use by the user program. The user program does not see the metadata headers, which are only for the internal use of the heap manager.
 
@@ -46,18 +76,14 @@ Second, the block headers help track and locate the borders between heap blocks.
 
 There are many ways to implement a heap manager. The most efficient schemes also place a footer at the end of each block. You may use footers if you wish, but they are not required.
 
-## Initialization: sbrk
+## Initialization: mmap or sbrk
 
-When a heap manager is initialized it obtains a large slab of virtual memory to carve up into blocks. It does this by requesting virtual memory from the operating system kernel using a system call, e.g., mmap or sbrk.
+When a heap manager is initialized it obtains a large slab of virtual memory to carve up into blocks. It does this by requesting virtual memory from the operating system kernel using a system call, e.g., mmap or sbrk. The supplied code uses mmap, which returns a pointer to the new region of memory that will be used (i.e., the "slab"). Initially the heap consists of a single free heap block that contains the entire slab. The supplied code casts the slab address to a metadata_t pointer and places it in a global pointer variable called freelist:
 
-The supplied code uses sbrk to extend the data segment of the virtual address space. The sbrk system call causes a region of the virtual memory that was previously unused (and invalid) to be registered for use: the kernel sets up page tables for the region and zero-fills each page of the region as it is referenced. sbrk returns a pointer to the new region, i.e., the "slab".
-
-Initially the heap consists of a single free heap block that contains the entire slab. The supplied code casts the slab address to a metadata_t pointer and places it in a global pointer variable called heap_region:
-
-    metadata_t* heap_region = (metadata_t*) sbrk(MAX_HEAP_SIZE);
+     freelist = (metadata_t*)mmap(NULL, max_bytes, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
 
 
-The heap_region pointer references the header for the first and only block in the heap, which initially is a free block. A "real" heap manager may obtain additional slabs as needed. For project 0 we limit the number of sbrk calls to HEAP_SYSCALL_LIMIT for evaluation purposes. The default value is 1.
+The freelist pointer references the header for the first and only block in the heap, which initially is a free block. A "real" heap manager may obtain additional slabs as needed. For this project, we limit the number of mmap calls to HEAP_SYSCALL_LIMIT for evaluation purposes. The default value is 1.
 
 ## API: dmalloc and dfree
 
@@ -65,13 +91,13 @@ All of the heap blocks you allocate with dmalloc() should come from the one init
 
 The supplied code includes some macros to assist you in dmm.h. It also makes it easy to keep track of the available space using a doubly linked list of headers of the free heap blocks, called a freelist. At the start of the program, the freelist is initialized to contain a single large block, consisting of the entire slab pointed to by heap region.
 
-## Splitting a free heap block
+## Splitting Blocks
 
 It is often useful to split a free heap block on a call to dmalloc. The split produces two contiguous free heap blocks of variable size, within the address range of the original block before the split. You must implement a split operation: without splitting, the heap could never contain more than one block.
 
 For a split, we first need to check whether the requested size is less than space available in the target block. If so, the most memory-efficient approach is to allocate a block of the requested size by splitting it off of the target block, leaving the rest of the target block free. The first block is returned to the caller and the second block remains in the freelist. The metadata headers in both blocks must be updated accordingly to reflect their sizes.
 
-## Freeing space: coalescing
+## Coalescing Blocks
 
 A client program frees an allocated heap block by calling dfree(), passing a pointer to the block to free. The heap manager must reclaim this space so that it becomes available for use by a future dmalloc. One solution is to just insert the block back into the freelist.
 
@@ -86,7 +112,5 @@ If we keep the freelist in sorted order, coalescing two blocks is simple. You ad
 # Logistics
 
 We recommend that you first implement dmalloc with splitting. Test it. Then implement dfree by inserting freed blocks into a sorted freelist. Test it, and be sure you can recycle heap blocks through the free list. Then add support for coalescing to reduce fragmentation. Make sure you pass all local tests first.
-
-    make test 
 
 
