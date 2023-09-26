@@ -29,6 +29,22 @@ typedef struct metadata {
 
 static metadata_t* freelist = NULL;
 
+metadata_t* findFirstFit(size_t numbytes) {
+  metadata_t* curr = freelist;
+  while (curr != NULL) {
+    if (curr->size < METADATA_T_ALIGNED) {
+      curr = curr->next;
+      continue;
+    }
+    else if (curr->size >= numbytes + METADATA_T_ALIGNED) {
+      return curr;
+    }
+    curr = curr->next;
+  }
+  return NULL;
+}
+
+
 void* dmalloc(size_t numbytes) {
 
   if(freelist == NULL) {
@@ -40,12 +56,126 @@ void* dmalloc(size_t numbytes) {
   assert(numbytes > 0);
 
   /* your code here */
+  size_t numbytesaligned = ALIGN(numbytes);
+  metadata_t* target = findFirstFit(numbytesaligned);
+  if (target != NULL) {
+    // printf("target size: %d\n", (int)target->size);
+    // printf("numbytesaligned: %d\n", numbytesaligned);
+    size_t rem = target->size - (numbytesaligned + METADATA_T_ALIGNED);
+    if (rem >= ALIGN(1)) {
+      // split the target block
+      metadata_t* new_block = (metadata_t*)(target+1);
+      void* ptr = ((void*)(new_block))+numbytesaligned;
+      new_block = (metadata_t*) ptr;
+
+      if (freelist == target) {
+        freelist = new_block;
+        new_block->size = rem;
+      }
+      else {
+        target->prev->next = new_block;
+        if (target->next != NULL) {
+          target->next->prev = new_block;
+        }
+        new_block->next = target->next;
+        new_block->prev = target->prev;
+        new_block->size = rem;
+      }
+
+      target->next = NULL;
+      target->prev = NULL;
+      target->size = numbytesaligned;
+    }
+    else {
+      // no need to split, just take target out
+      if (freelist == target) {
+        freelist = target->next;
+      }
+      else {
+        target->prev->next = target->next;
+        if (target->next != NULL) {
+          target->next->prev = target->prev;
+        }
+      }
+      target->next = NULL;
+      target->prev = NULL;
+      target->size = numbytesaligned;
+
+    }
+    // print_freelist();
+    // printf("target pointer: %p\n", target);
+    // printf("target data pointer: %p\n", target+1);
+    return (void*)(target)+METADATA_T_ALIGNED;
+  }
 
   return NULL;
 }
 
+void coallesce(metadata_t* prevptr, metadata_t* nextptr) {
+  // coallesce after freeing allocated mem chunk (adding back into freelist)
+  // add next to prev
+  prevptr->next = nextptr->next;
+  if (nextptr->next != NULL) {
+    nextptr->next->prev = prevptr;
+  }
+  prevptr->size += METADATA_T_ALIGNED + nextptr->size;
+  nextptr->size = 0;
+  nextptr->next = NULL;
+  nextptr->prev = NULL;
+}
+
 void dfree(void* ptr) {
   /* your code here */
+  metadata_t* prev = freelist;
+  metadata_t* curr = freelist;
+  metadata_t* target = (metadata_t*)(ptr-METADATA_T_ALIGNED);
+  while (curr != NULL) {
+    prev = curr->prev;
+    if (freelist == NULL || freelist->size == 0) {
+      // if there is no space in freelist
+      freelist = target;
+      freelist->prev = NULL;
+      freelist->next = NULL;
+      break;
+    }
+    else if (curr == freelist && target < curr) {
+      // if target comes before the freelist
+      target->next = freelist;
+      curr->prev = target;
+      freelist = target;
+      break;
+    }
+    else if (curr != freelist && prev < target && target < curr) {
+      // if target falls between 2 blocks in freelist linkedlist
+      prev->next = target;
+      curr->prev = target;
+      target->prev = prev;
+      target->next = curr;
+      break;
+    }
+    else if (curr->next == NULL && (void*)(curr)+curr->size < (void*)target) {
+      // if target falls after freelist
+      curr->next = target;
+      target->prev = curr;
+      target->next = NULL;
+      break;
+    }
+    curr = curr->next;
+  }
+  metadata_t* currptr = freelist;
+  while (currptr != NULL) {
+    metadata_t* nextptr = (metadata_t*)(currptr+1);
+    void* temp = (void*)(nextptr) + currptr->size;
+    nextptr = (metadata_t*)(temp);
+    if (currptr->next == nextptr) { // if curr's next block is next to curr
+      coallesce(currptr, nextptr);
+      currptr = freelist;
+    }
+    else {
+      currptr = currptr->next;
+    }
+  }
+  // print_freelist();
 }
 
 /*
@@ -74,10 +204,10 @@ bool dmalloc_init() {
 
 
 /* for debugging; can be turned off through -NDEBUG flag*/
-/*
 
-This code is here for reference.  It may be useful.
-Warning: the NDEBUG flag also turns off assert protection.
+
+// This code is here for reference.  It may be useful.
+// Warning: the NDEBUG flag also turns off assert protection.
 
 
 void print_freelist(); 
@@ -103,4 +233,3 @@ void print_freelist() {
   }
   DEBUG("\n");
 }
-*/
